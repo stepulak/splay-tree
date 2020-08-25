@@ -1,4 +1,6 @@
-package splaytree
+package main
+
+import "fmt"
 
 type Node struct {
 	Key    interface{}
@@ -27,6 +29,21 @@ func (t *Tree) findNodeRec(key interface{}, node *Node, parent *Node) (*Node, *N
 		return t.findNodeRec(key, node.Right, node)
 	}
 	return nil, node
+}
+
+func (t *Tree) swapGrandparent(node *Node, parent *Node) {
+	grandPar := parent.Parent
+	node.Parent = grandPar
+	if grandPar != nil {
+		if parent.isLeftChild() {
+			grandPar.Left = node
+		} else {
+			grandPar.Right = node
+		}
+	} else {
+		t.Root = node
+	}
+	parent.Parent = node
 }
 
 func (t *Tree) rightRotation(node *Node) {
@@ -69,14 +86,17 @@ func (t *Tree) splay(node *Node) {
 			t.leftRotation(node)
 		} else if node.isLeftChild() && !par.isLeftChild() {
 			// Zig-zag step
+			t.rightRotation(node)
 			t.leftRotation(node)
-			t.rightRotation(par)
+		} else {
+			t.leftRotation(node)
+			t.rightRotation(node)
 		}
 	}
 }
 
 func (t *Tree) insert(key, value interface{}, parent *Node) *Node {
-	node := &Node{}
+	node := &Node{Key: key, Value: value, Parent: parent}
 	if t.KeyComparator(key, parent.Key) < 0 {
 		parent.Left = node
 	} else {
@@ -101,4 +121,36 @@ func (t *Tree) Add(key, value interface{}) *Node {
 		return node
 	}
 	return t.insert(key, value, par)
+}
+
+func main() {
+	t := &Tree{KeyComparator: func(key1, key2 interface{}) int {
+		a, b := key1.(int), key2.(int)
+		if a < b {
+			return -1
+		} else if a > b {
+			return 1
+		}
+		return 0
+	}}
+
+	t.Add(1, "1")
+	t.Add(2, "2")
+	t.Add(5, "5")
+	t.Add(-1, "-1")
+	t.Add(4, "4")
+	t.Add(10, "10")
+	fmt.Println("----------")
+	fmt.Println(t.Counter)
+	/*fmt.Println(t.Root)
+	fmt.Println(t.Root.Left)
+	fmt.Println(t.Root.Right)
+	fmt.Println(t.Root.Left.Right)
+	fmt.Println(t.Root.Left.Right.Left)*/
+	fmt.Println(t.Root)
+	fmt.Println(t.Root.Left)
+	fmt.Println(t.Root.Left.Left)
+	fmt.Println(t.Root.Left.Left.Left)
+	fmt.Println(t.Root.Left.Left.Left.Right)
+	fmt.Println(t.Root.Left.Left.Left.Right.Left)
 }
