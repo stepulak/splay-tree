@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Node struct {
 	Key    interface{}
@@ -14,9 +17,54 @@ func (n *Node) isLeftChild() bool {
 	return n.Parent != nil && n.Parent.Left == n
 }
 
+func (n *Node) mostRightChild() *Node {
+	if n.Right == nil {
+		return n
+	}
+	return n.Right.mostRightChild()
+}
+
+type NodeVisitor func(*Node)
+
+func (n *Node) traverseInorder(visitor NodeVisitor) {
+	if n.Left != nil {
+		n.Left.traverseInorder(visitor)
+	}
+	visitor(n)
+	if n.Right != nil {
+		n.Right.traverseInorder(visitor)
+	}
+}
+
+func (n *Node) traversePreorder(visitor NodeVisitor) {
+	visitor(n)
+	if n.Left != nil {
+		n.Left.traverseInorder(visitor)
+	}
+	if n.Right != nil {
+		n.Right.traverseInorder(visitor)
+	}
+}
+
+func (n *Node) traversePostorder(visitor NodeVisitor) {
+	if n.Left != nil {
+		n.Left.traverseInorder(visitor)
+	}
+	if n.Right != nil {
+		n.Right.traverseInorder(visitor)
+	}
+	visitor(n)
+}
+
+func (n *Node) String() string {
+	return fmt.Sprintf(
+		"[Key: %v; Val: %v; Ptr: %p; Par: %p; L: %p; R: %p]",
+		n.Key, n.Value, n, n.Parent, n.Left, n.Right)
+}
+
 type Tree struct {
 	Root          *Node
-	Counter       int
+	Count         int
 	KeyComparator func(key1 interface{}, key2 interface{}) int
 }
 
@@ -47,44 +95,44 @@ func (t *Tree) swapGrandparent(node *Node, parent *Node) {
 }
 
 func (t *Tree) rightRotation(node *Node) {
-	par, right := node.Parent, node.Right
-	node.Right = par
-	par.Left = right
+	parent, right := node.Parent, node.Right
+	node.Right = parent
+	parent.Left = right
 	if right != nil {
-		right.Parent = par
+		right.Parent = parent
 	}
-	t.swapGrandparent(node, par)
+	t.swapGrandparent(node, parent)
 }
 
 func (t *Tree) leftRotation(node *Node) {
-	par, left := node.Parent, node.Left
-	node.Left = par
-	par.Right = left
+	parent, left := node.Parent, node.Left
+	node.Left = parent
+	parent.Right = left
 	if left != nil {
-		left.Parent = par
+		left.Parent = parent
 	}
-	t.swapGrandparent(node, par)
+	t.swapGrandparent(node, parent)
 }
 
 func (t *Tree) splay(node *Node) {
 	for node.Parent != nil {
-		par := node.Parent
-		if par.Parent == nil {
+		parent := node.Parent
+		if parent.Parent == nil {
 			// Zig step
 			if node.isLeftChild() {
 				t.rightRotation(node)
 			} else {
 				t.leftRotation(node)
 			}
-		} else if node.isLeftChild() && par.isLeftChild() {
+		} else if node.isLeftChild() && parent.isLeftChild() {
 			// Zig-zig step
-			t.rightRotation(par)
+			t.rightRotation(parent)
 			t.rightRotation(node)
-		} else if !node.isLeftChild() && !par.isLeftChild() {
+		} else if !node.isLeftChild() && !parent.isLeftChild() {
 			// Zig-zig step
-			t.leftRotation(par)
+			t.leftRotation(parent)
 			t.leftRotation(node)
-		} else if node.isLeftChild() && !par.isLeftChild() {
+		} else if node.isLeftChild() && !parent.isLeftChild() {
 			// Zig-zag step
 			t.rightRotation(node)
 			t.leftRotation(node)
@@ -95,15 +143,36 @@ func (t *Tree) splay(node *Node) {
 	}
 }
 
-func (t *Tree) insert(key, value interface{}, parent *Node) *Node {
-	node := &Node{Key: key, Value: value, Parent: parent}
-	if t.KeyComparator(key, parent.Key) < 0 {
-		parent.Left = node
+func (t *Tree) joinSubtrees(left, right *Node) {
+	if left != nil {
+		left.Parent = nil
+		if left.Right != nil {
+			mostRight := left.Right.mostRightChild()
+			t.splay(mostRight)
+			t.Root = mostRight
+		} else {
+			t.Root = left
+		}
+		if right != nil {
+			t.Root.Right = right
+			right.Parent = t.Root
+		}
+	} else if right != nil {
+		t.Root = right
+		t.Root.Parent = nil
 	} else {
-		parent.Right = node
+		t.Root = nil
+	}
+}
+
+func (t *Tree) insertNode(node *Node) *Node {
+	if t.KeyComparator(node.Key, node.Parent.Key) < 0 {
+		node.Parent.Left = node
+	} else {
+		node.Parent.Right = node
 	}
 	t.splay(node)
-	t.Counter++
+	t.Count++
 	return node
 }
 
@@ -111,17 +180,85 @@ func (t *Tree) Add(key, value interface{}) *Node {
 	// Add root if does not exists
 	if t.Root == nil {
 		t.Root = &Node{key, value, nil, nil, nil}
-		t.Counter++
+		t.Count++
 		return t.Root
 	}
-	node, par := t.findNodeRec(key, t.Root, nil)
+	node, parent := t.findNodeRec(key, t.Root, nil)
 	if node != nil {
 		// Node with same key found, just replace the value
 		node.Value = value
 		return node
 	}
-	return t.insert(key, value, par)
+	return t.insertNode(&Node{Key: key, Value: value, Parent: parent})
 }
+
+func (t *Tree) Find(key interface{}) *Node {
+	node, _ := t.findNodeRec(key, t.Root, nil)
+	return node
+}
+
+type NotFoundError struct {
+	key interface{}
+}
+
+func (e NotFoundError) Error() string {
+	return fmt.Sprintf("Node with key: %v not found!", e.key)
+}
+
+func (t *Tree) Remove(key interface{}) error {
+	node, _ := t.findNodeRec(key, t.Root, nil)
+	if node == nil {
+		return NotFoundError{key}
+	}
+	t.splay(node)
+	t.joinSubtrees(node.Left, node.Right)
+	t.Count--
+	return nil
+}
+
+func (t *Tree) TraverseInorder(visitor NodeVisitor) {
+	if t.Root != nil {
+		t.Root.traverseInorder(visitor)
+	}
+}
+
+func (t *Tree) TraversePreorder(visitor NodeVisitor) {
+	if t.Root != nil {
+		t.Root.traversePreorder(visitor)
+	}
+}
+
+func (t *Tree) TraversePostorder(visitor NodeVisitor) {
+	if t.Root != nil {
+		t.Root.traversePostorder(visitor)
+	}
+}
+
+func (t *Tree) String() string {
+	sb := strings.Builder{}
+	sb.WriteString("{ ")
+	t.TraverseInorder(func(n *Node) {
+		sb.WriteString(n.String())
+		sb.WriteString(" ")
+	})
+	sb.WriteString("}")
+	return sb.String()
+}
+
+func (t *Tree) ToMap() map[interface{}]interface{} {
+	m := make(map[interface{}]interface{}, t.Count)
+	t.TraverseInorder(func(n *Node) {
+		m[n.Key] = n.Value
+	})
+	return m
+}
+
+// TODO:
+// construct from slice of pairs
+// unittests
+// doc
+// remove key+value
+// to map[keytype]valuetype
 
 func main() {
 	t := &Tree{KeyComparator: func(key1, key2 interface{}) int {
@@ -141,7 +278,7 @@ func main() {
 	t.Add(4, "4")
 	t.Add(10, "10")
 	fmt.Println("----------")
-	fmt.Println(t.Counter)
+	fmt.Println(t.Count)
 	/*fmt.Println(t.Root)
 	fmt.Println(t.Root.Left)
 	fmt.Println(t.Root.Right)
@@ -153,4 +290,33 @@ func main() {
 	fmt.Println(t.Root.Left.Left.Left)
 	fmt.Println(t.Root.Left.Left.Left.Right)
 	fmt.Println(t.Root.Left.Left.Left.Right.Left)
+	fmt.Println("----------")
+
+	fmt.Println(t.Find(1))
+	fmt.Println(t.Find(3))
+	fmt.Println(t.Find(-1))
+	fmt.Println("----------")
+
+	fmt.Println(t.String())
+	fmt.Println(t.ToMap())
+
+	fmt.Println(t.Remove(44))
+	fmt.Println(t.Remove(10))
+
+	fmt.Println(t.Root)
+	fmt.Println(t.Root.Left)
+	fmt.Println(t.Root.Left.Left)
+	fmt.Println(t.Root.Left.Left.Right)
+	fmt.Println(t.Root.Left.Left.Right.Left)
+
+	fmt.Println("----------")
+
+	fmt.Println(t.Remove(1))
+	fmt.Println(t.Remove(2))
+	fmt.Println(t.Remove(5))
+	fmt.Println(t.Remove(-1))
+	fmt.Println(t.Remove(4))
+
+	fmt.Println(t.Count)
+	fmt.Println(t.Root)
 }
