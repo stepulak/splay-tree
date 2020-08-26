@@ -1,9 +1,17 @@
-package main
+package splaytree
 
 import (
 	"fmt"
 	"strings"
 )
+
+type Comparator func(interface{}, interface{}) int
+
+type Tree struct {
+	Root          *Node
+	Count         int
+	KeyComparator Comparator
+}
 
 type Node struct {
 	Key    interface{}
@@ -11,6 +19,108 @@ type Node struct {
 	Parent *Node
 	Left   *Node
 	Right  *Node
+}
+
+type NodeVisitor = func(n *Node)
+
+type TreeError string
+
+const (
+	NotFoundError    = "Not found"
+	InvalidNodeError = "Invalid node"
+)
+
+func Create(keyComparator Comparator) *Tree {
+	return &Tree{KeyComparator: keyComparator}
+}
+
+func (t *Tree) Find(key interface{}) *Node {
+	node, _ := t.findNodeRec(key, t.Root, nil)
+	return node
+}
+
+func (t *Tree) Add(key, value interface{}) *Node {
+	// Add root if does not exists
+	if t.Root == nil {
+		t.Root = &Node{key, value, nil, nil, nil}
+		t.Count = 1
+		return t.Root
+	}
+	node, parent := t.findNodeRec(key, t.Root, nil)
+	if node != nil {
+		// Node with same key found, just replace the value
+		node.Value = value
+		return node
+	}
+	return t.insertNode(&Node{Key: key, Value: value, Parent: parent})
+}
+
+func (t *Tree) AddTree(tree *Tree) {
+	tree.TraverseInorder(func(n *Node) {
+		t.Add(n.Key, n.Value)
+	})
+}
+
+func (t *Tree) Remove(key interface{}) error {
+	node := t.Find(key)
+	if node == nil {
+		return TreeError(NotFoundError)
+	}
+	t.RemoveNode(node)
+	return nil
+}
+
+func (t *Tree) RemoveNode(node *Node) {
+	t.splay(node)
+	t.joinSubtrees(node.Left, node.Right)
+	t.Count--
+}
+
+func (t *Tree) TraverseInorder(visitor NodeVisitor) {
+	if t.Root != nil {
+		t.Root.traverseInorder(visitor)
+	}
+}
+
+func (t *Tree) TraversePreorder(visitor NodeVisitor) {
+	if t.Root != nil {
+		t.Root.traversePreorder(visitor)
+	}
+}
+
+func (t *Tree) TraversePostorder(visitor NodeVisitor) {
+	if t.Root != nil {
+		t.Root.traversePostorder(visitor)
+	}
+}
+
+func (t *Tree) String() string {
+	sb := strings.Builder{}
+	sb.WriteString("{ ")
+	t.TraverseInorder(func(n *Node) {
+		sb.WriteString(n.String())
+		sb.WriteString(" ")
+	})
+	sb.WriteString("}")
+	return sb.String()
+}
+
+func (t *Tree) ToMap() map[interface{}]interface{} {
+	m := make(map[interface{}]interface{}, t.Count)
+	t.TraverseInorder(func(n *Node) {
+		m[n.Key] = n.Value
+	})
+	return m
+}
+
+func (e TreeError) Error() string {
+	return fmt.Sprintf("Node error: %v", e)
+}
+
+func (n *Node) String() string {
+	return fmt.Sprintf(
+		"[Key: %v; Val: %v; Ptr: %p; Par: %p; L: %p; R: %p]",
+		n.Key, n.Value, n, n.Parent, n.Left, n.Right)
 }
 
 func (n *Node) isLeftChild() bool {
@@ -23,8 +133,6 @@ func (n *Node) mostRightChild() *Node {
 	}
 	return n.Right.mostRightChild()
 }
-
-type NodeVisitor func(*Node)
 
 func (n *Node) traverseInorder(visitor NodeVisitor) {
 	if n.Left != nil {
@@ -54,18 +162,6 @@ func (n *Node) traversePostorder(visitor NodeVisitor) {
 		n.Right.traverseInorder(visitor)
 	}
 	visitor(n)
-}
-
-func (n *Node) String() string {
-	return fmt.Sprintf(
-		"[Key: %v; Val: %v; Ptr: %p; Par: %p; L: %p; R: %p]",
-		n.Key, n.Value, n, n.Parent, n.Left, n.Right)
-}
-
-type Tree struct {
-	Root          *Node
-	Count         int
-	KeyComparator func(key1 interface{}, key2 interface{}) int
 }
 
 func (t *Tree) findNodeRec(key interface{}, node *Node, parent *Node) (*Node, *Node) {
@@ -175,90 +271,6 @@ func (t *Tree) insertNode(node *Node) *Node {
 	t.Count++
 	return node
 }
-
-func (t *Tree) Add(key, value interface{}) *Node {
-	// Add root if does not exists
-	if t.Root == nil {
-		t.Root = &Node{key, value, nil, nil, nil}
-		t.Count++
-		return t.Root
-	}
-	node, parent := t.findNodeRec(key, t.Root, nil)
-	if node != nil {
-		// Node with same key found, just replace the value
-		node.Value = value
-		return node
-	}
-	return t.insertNode(&Node{Key: key, Value: value, Parent: parent})
-}
-
-func (t *Tree) Find(key interface{}) *Node {
-	node, _ := t.findNodeRec(key, t.Root, nil)
-	return node
-}
-
-type NotFoundError struct {
-	key interface{}
-}
-
-func (e NotFoundError) Error() string {
-	return fmt.Sprintf("Node with key: %v not found!", e.key)
-}
-
-func (t *Tree) Remove(key interface{}) error {
-	node, _ := t.findNodeRec(key, t.Root, nil)
-	if node == nil {
-		return NotFoundError{key}
-	}
-	t.splay(node)
-	t.joinSubtrees(node.Left, node.Right)
-	t.Count--
-	return nil
-}
-
-func (t *Tree) TraverseInorder(visitor NodeVisitor) {
-	if t.Root != nil {
-		t.Root.traverseInorder(visitor)
-	}
-}
-
-func (t *Tree) TraversePreorder(visitor NodeVisitor) {
-	if t.Root != nil {
-		t.Root.traversePreorder(visitor)
-	}
-}
-
-func (t *Tree) TraversePostorder(visitor NodeVisitor) {
-	if t.Root != nil {
-		t.Root.traversePostorder(visitor)
-	}
-}
-
-func (t *Tree) String() string {
-	sb := strings.Builder{}
-	sb.WriteString("{ ")
-	t.TraverseInorder(func(n *Node) {
-		sb.WriteString(n.String())
-		sb.WriteString(" ")
-	})
-	sb.WriteString("}")
-	return sb.String()
-}
-
-func (t *Tree) ToMap() map[interface{}]interface{} {
-	m := make(map[interface{}]interface{}, t.Count)
-	t.TraverseInorder(func(n *Node) {
-		m[n.Key] = n.Value
-	})
-	return m
-}
-
-// TODO:
-// construct from slice of pairs
-// unittests
-// doc
-// remove key+value
-// to map[keytype]valuetype
 
 func main() {
 	t := &Tree{KeyComparator: func(key1, key2 interface{}) int {
