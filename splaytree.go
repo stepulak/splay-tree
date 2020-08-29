@@ -5,14 +5,28 @@ import (
 	"strings"
 )
 
-type Comparator func(interface{}, interface{}) int
+// Comparator is a comparing function that:
+// returns -1 if a < b
+// returns 1 if a > b
+// returns 0 if a == 0
+type Comparator func(a interface{}, b interface{}) int
 
+// Tree structure represents the Splay tree
+// Root: pointer to root node
+// Count: number of elements
+// KeyComparator: function for comparing keys, see @Comparator
 type Tree struct {
 	Root          *Node
 	Count         int
 	KeyComparator Comparator
 }
 
+// Node structure that represents the key-value pair in Splay tree
+// Key: key for node comparison
+// Value: value stored in node
+// Parent: pointer to parent node
+// Left: pointer to left child node
+// Right: pointer to right child node
 type Node struct {
 	Key    interface{}
 	Value  interface{}
@@ -21,24 +35,33 @@ type Node struct {
 	Right  *Node
 }
 
+// NodeVisitor is a function for visiting nodes
 type NodeVisitor = func(n *Node)
 
+// TreeError type
 type TreeError string
 
+// TreeError's possible states
 const (
-	NotFoundError    = "Not found"
-	InvalidNodeError = "Invalid node"
+	NotFoundError = "Not found"
+	// Add more if needed
 )
 
+// Create new Splay tree with given key comparator
 func Create(keyComparator Comparator) *Tree {
 	return &Tree{KeyComparator: keyComparator}
 }
 
+// Find node with given key in tree
+// If node is not found, return nil
 func (t *Tree) Find(key interface{}) *Node {
 	node, _ := t.findNodeRec(key, t.Root, nil)
 	return node
 }
 
+// Add new key-value pair into tree
+// If node with given key already exists, then just update it's value with new one
+// Return pointer to newly added node
 func (t *Tree) Add(key, value interface{}) *Node {
 	// Add root if does not exists
 	if t.Root == nil {
@@ -55,12 +78,15 @@ func (t *Tree) Add(key, value interface{}) *Node {
 	return t.insertNode(&Node{Key: key, Value: value, Parent: parent})
 }
 
+// AddTree - add all elements from given tree into this tree
 func (t *Tree) AddTree(tree *Tree) {
 	tree.TraverseInorder(func(n *Node) {
 		t.Add(n.Key, n.Value)
 	})
 }
 
+// Remove node with given key from this tree
+// If node with given key is not found, then return NotFoundError
 func (t *Tree) Remove(key interface{}) error {
 	node := t.Find(key)
 	if node == nil {
@@ -70,30 +96,40 @@ func (t *Tree) Remove(key interface{}) error {
 	return nil
 }
 
+// RemoveNode - remove given node from this tree
+// Node is not validated or checked if it belongs to this tree
 func (t *Tree) RemoveNode(node *Node) {
 	t.splay(node)
 	t.joinSubtrees(node.Left, node.Right)
 	t.Count--
 }
 
+// TraverseInorder - inorder traverse through tree using visitor
+// See https://en.wikipedia.org/wiki/Tree_traversal#Implementations
 func (t *Tree) TraverseInorder(visitor NodeVisitor) {
 	if t.Root != nil {
 		t.Root.traverseInorder(visitor)
 	}
 }
 
+// TraversePreorder - preorder traverse through tree using visitor
+// See https://en.wikipedia.org/wiki/Tree_traversal#Implementations
 func (t *Tree) TraversePreorder(visitor NodeVisitor) {
 	if t.Root != nil {
 		t.Root.traversePreorder(visitor)
 	}
 }
 
+// TraversePostorder - postorder traverse through tree using visitor
+// See https://en.wikipedia.org/wiki/Tree_traversal#Implementations
 func (t *Tree) TraversePostorder(visitor NodeVisitor) {
 	if t.Root != nil {
 		t.Root.traversePostorder(visitor)
 	}
 }
 
+// Print this tree into string
+// Format: { [NodeInfo]* }
 func (t *Tree) String() string {
 	sb := strings.Builder{}
 	sb.WriteString("{ ")
@@ -105,6 +141,7 @@ func (t *Tree) String() string {
 	return sb.String()
 }
 
+// ToMap - convert tree into generic map, disabandon order of elements
 func (t *Tree) ToMap() map[interface{}]interface{} {
 	m := make(map[interface{}]interface{}, t.Count)
 	t.TraverseInorder(func(n *Node) {
@@ -113,10 +150,12 @@ func (t *Tree) ToMap() map[interface{}]interface{} {
 	return m
 }
 
+// Print TreeError status
 func (e TreeError) Error() string {
 	return fmt.Sprintf("Node error: %v", e)
 }
 
+// Print node's detailed information into string
 func (n *Node) String() string {
 	return fmt.Sprintf(
 		"[Key: %v; Val: %v; Ptr: %p; Par: %p; L: %p; R: %p]",
@@ -257,6 +296,7 @@ func (t *Tree) joinSubtrees(left, right *Node) {
 		t.Root = right
 		t.Root.Parent = nil
 	} else {
+		// Last element?
 		t.Root = nil
 	}
 }

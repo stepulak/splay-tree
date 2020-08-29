@@ -5,7 +5,9 @@ import (
 	"math"
 	"math/rand"
 	"reflect"
+	"regexp"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -30,16 +32,16 @@ func floatComparator(key1, key2 interface{}) int {
 func TestCreate(t *testing.T) {
 	tree := Create(intComparator)
 	if tree == nil {
-		t.Errorf("Tree is nil")
+		t.Error("Tree is nil")
 	}
 	if tree.Root != nil {
-		t.Errorf("Root is not nil")
+		t.Error("Root is not nil")
 	}
 	if tree.Count != 0 {
-		t.Errorf("Count is not zero")
+		t.Error("Count is not zero")
 	}
 	if fmt.Sprintf("%p", intComparator) != fmt.Sprintf("%p", tree.KeyComparator) {
-		t.Errorf("Key comparator is invalid")
+		t.Error("Key comparator is invalid")
 	}
 }
 
@@ -47,16 +49,16 @@ func TestAdd_1(t *testing.T) {
 	tree := Create(intComparator)
 	tree.Add(1, "value")
 	if tree.Root == nil {
-		t.Errorf("Root is nil")
+		t.Error("Root is nil")
 	}
 	if tree.Count != 1 {
-		t.Errorf("Invalid count")
+		t.Error("Invalid count")
 	}
 	if tree.Root.Key != 1 {
-		t.Errorf("Keys do not match")
+		t.Error("Keys do not match")
 	}
 	if tree.Root.Value != "value" {
-		t.Errorf("Values do not match")
+		t.Error("Values do not match")
 	}
 }
 
@@ -67,16 +69,16 @@ func TestAdd_2(t *testing.T) {
 	tree.Add(4, "4")
 
 	if tree.Count != 3 {
-		t.Errorf("Invalid count")
+		t.Error("Invalid count")
 	}
 	if tree.Root.Key != 4 {
-		t.Errorf("Invalid root key")
+		t.Error("Invalid root key")
 	}
 	if tree.Root.Left != nil && tree.Root.Left.Key != 1 {
-		t.Errorf("Invalid left key")
+		t.Error("Invalid left key")
 	}
 	if tree.Root.Right != nil && tree.Root.Right.Key != 5 {
-		t.Errorf("Invalid right key")
+		t.Error("Invalid right key")
 	}
 }
 
@@ -96,25 +98,25 @@ func TestAdd_3(t *testing.T) {
 	}
 
 	if tree.Count != 6 {
-		t.Errorf("Invalid count")
+		t.Error("Invalid count")
 	}
 	if !cmp(tree.Root, 2.2, "2.2") {
-		t.Errorf("Invalid root")
+		t.Error("Invalid root")
 	}
 	if !cmp(tree.Root.Left, 1.5, "1.5") {
-		t.Errorf("Invalid left")
+		t.Error("Invalid left")
 	}
 	if !cmp(tree.Root.Left.Left, 0.7, "0.7") {
-		t.Errorf("Invalid left left")
+		t.Error("Invalid left left")
 	}
 	if !cmp(tree.Root.Left.Left.Left, 0.5, "0.5") {
-		t.Errorf("Invalid left left left")
+		t.Error("Invalid left left left")
 	}
 	if !cmp(tree.Root.Right, 7.1, "7.1") {
-		t.Errorf("Invalid right")
+		t.Error("Invalid right")
 	}
 	if !cmp(tree.Root.Right.Left, 2.5, "2.5") {
-		t.Errorf("Invalid right left")
+		t.Error("Invalid right left")
 	}
 }
 
@@ -128,7 +130,7 @@ func TestAdd_Traverse(t *testing.T) {
 		tree.Add(v, fmt.Sprintf("random value: %v", v))
 	}
 	if tree.Count != numElements {
-		t.Errorf("Invalid count")
+		t.Error("Invalid count")
 	}
 
 	// Traverse
@@ -137,18 +139,21 @@ func TestAdd_Traverse(t *testing.T) {
 		keys = append(keys, node.Key.(int))
 	})
 	if len(keys) != numElements {
-		t.Errorf("Number of keys does not match")
+		t.Error("Number of keys does not match")
 	}
 	if !sort.SliceIsSorted(keys, func(a, b int) bool { return a < b }) {
-		t.Errorf("Keys are not sorted")
+		t.Error("Keys are not sorted")
 	}
 
 	// Remove
 	for _, key := range keys {
 		tree.Remove(key)
 	}
+	if tree.Remove(123).Error() != NotFoundError {
+		t.Error("Expected NotFoundError")
+	}
 	if tree.Count != 0 || tree.Root != nil {
-		t.Errorf("Tree is not empty")
+		t.Error("Tree is not empty")
 	}
 }
 
@@ -167,44 +172,67 @@ func TestRemove_1(t *testing.T) {
 	}
 
 	if tree.Count != 5 {
-		t.Errorf("Invalid count")
+		t.Error("Invalid count")
 	}
 	if !cmp(tree.Root, 22) {
-		t.Errorf("Invalid root")
+		t.Error("Invalid root")
 	}
 	if !cmp(tree.Root.Left, 7) {
-		t.Errorf("Invalid left")
+		t.Error("Invalid left")
 	}
 	if !cmp(tree.Root.Left.Right, 15) {
-		t.Errorf("Invalid left right")
+		t.Error("Invalid left right")
 	}
 	if !cmp(tree.Root.Right, 71) {
-		t.Errorf("Invalid right")
+		t.Error("Invalid right")
 	}
 	if !cmp(tree.Root.Right.Left, 25) {
-		t.Errorf("Invalid right left")
+		t.Error("Invalid right left")
 	}
 
 	tree.Remove(7)
 	tree.Remove(71)
 	if !cmp(tree.Root, 25) {
-		t.Errorf("Invalid root")
+		t.Error("Invalid root")
 	}
 	if !cmp(tree.Root.Left, 22) {
-		t.Errorf("Invalid left")
+		t.Error("Invalid left")
 	}
 	if !cmp(tree.Root.Left.Left, 15) {
-		t.Errorf("Invalid left left")
+		t.Error("Invalid left left")
 	}
 
 	tree.Remove(25)
 	tree.Remove(22)
 	tree.Remove(15)
 	if tree.Count != 0 {
-		t.Errorf("Count is not 0")
+		t.Error("Count is not 0")
 	}
 	if tree.Root != nil {
-		t.Errorf("Root is not nil")
+		t.Error("Root is not nil")
+	}
+}
+
+func TestFind_RemoveNode(t *testing.T) {
+	tree := Create(intComparator)
+
+	tree.Add(1, nil)
+	tree.Add(2, nil)
+	tree.Add(3, nil)
+	tree.Add(-1, nil)
+	tree.Add(-2, nil)
+	tree.Add(-3, nil)
+
+	for _, key := range []int{3, -2, -1, 1, -3, 2} {
+		node := tree.Find(key)
+		if node == nil {
+			t.Error("Found node is nil")
+		}
+		tree.RemoveNode(node)
+	}
+
+	if tree.Count != 0 {
+		t.Error("Tree is not empty")
 	}
 }
 
@@ -223,7 +251,7 @@ func TestAddTree_Traverse(t *testing.T) {
 	treeCopy.AddTree(tree)
 
 	if treeCopy.Count != 4 {
-		t.Errorf("Invalid count")
+		t.Error("Invalid count")
 	}
 
 	keysInorder := make([]string, 0, tree.Count)
@@ -241,12 +269,63 @@ func TestAddTree_Traverse(t *testing.T) {
 	})
 
 	if !reflect.DeepEqual([]string{"a", "aa", "aaa", "aaaa"}, keysInorder) {
-		t.Errorf("Invalid inorder")
+		t.Error("Invalid inorder")
 	}
 	if !reflect.DeepEqual([]string{"aaaa", "a", "aa", "aaa"}, keysPreorder) {
-		t.Errorf("Invalid preorder")
+		t.Error("Invalid preorder")
 	}
 	if !reflect.DeepEqual([]string{"a", "aa", "aaa", "aaaa"}, keysPostorder) {
-		t.Errorf("Invalid postorder")
+		t.Error("Invalid postorder")
+	}
+}
+
+func TestString(t *testing.T) {
+	type Value struct {
+		myValue string
+	}
+
+	tree := Create(intComparator)
+	tree.Add(1, Value{"x"})
+	tree.Add(2, Value{"y"})
+	tree.Add(3, Value{"z"})
+
+	str := tree.String()
+	rx := regexp.MustCompile(`Key:\s(\d)+;\sVal:\s\{(\w)+\};`)
+
+	expectedKeys := []int{1, 2, 3}
+	expectedValues := []string{"x", "y", "z"}
+	matches := rx.FindAllStringSubmatch(str, -1)
+
+	if len(matches) != 3 {
+		t.Error("Invalid number of matches")
+	}
+
+	for i, match := range matches {
+		if len(match) != 3 {
+			t.Error("Invalid match")
+		}
+		if key, err := strconv.Atoi(match[1]); err != nil || expectedKeys[i] != key {
+			t.Errorf("Invalid key: %v expected: %v", key, expectedKeys[i])
+		}
+		if expectedValues[i] != match[2] {
+			t.Errorf("Invalid value: %v expected: %v", match[2], expectedValues[i])
+		}
+	}
+}
+
+func TestToMap(t *testing.T) {
+	tree := Create(intComparator)
+
+	tree.Add(42, "42")
+	tree.Add(15, "15")
+	tree.Add(33, "33")
+	tree.Add(33, "33x") // Update
+	tree.Add(15, "15x") // Update
+
+	m := tree.ToMap()
+	expected := map[interface{}]interface{}{42: "42", 15: "15x", 33: "33x"}
+
+	if !reflect.DeepEqual(m, expected) {
+		t.Error("Map created from tree is different to expected")
 	}
 }
