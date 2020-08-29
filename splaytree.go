@@ -55,6 +55,9 @@ func Create(keyComparator Comparator) *Tree {
 // Find node with given key in tree
 // If node is not found, return nil
 func (t *Tree) Find(key interface{}) *Node {
+	if t.Root == nil {
+		return nil
+	}
 	node, _ := t.findNodeRec(key, t.Root, nil)
 	return node
 }

@@ -149,7 +149,7 @@ func TestAdd_Traverse(t *testing.T) {
 	for _, key := range keys {
 		tree.Remove(key)
 	}
-	if tree.Remove(123).Error() != NotFoundError {
+	if err := tree.Remove(123); err == nil || err != TreeError(NotFoundError) {
 		t.Error("Expected NotFoundError")
 	}
 	if tree.Count != 0 || tree.Root != nil {
